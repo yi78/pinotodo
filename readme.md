@@ -4,7 +4,8 @@ Pino ToDo is a To-Do list written in Python. It runs in the console.
 ## Commands
 _legend: {required} [optional]_
 
-* **quit** 	exit the program _(aliases: q, exit, Q, bye)_
+* **quit** 	exit the program _(aliases: q, exit, bye)_
+* **Q**	exit the program without asking for confirmation
 * **add [-!] {str}**	adds a task to the list with str as its description. If the -! parameter is provided, the task will be marked as critical (i.e. will display a ! mark) _(aliases: a)_
 * **delete {id}**	deletes the task. ID is the number shown on the left _(aliases: d, del, -)_
 * **complete {id}**	mark a task as completed. Does not delete the task, just marks it with a x. _(aliases: c, x, com, markcomplete)_
