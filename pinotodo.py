@@ -58,6 +58,33 @@ class PinoToDo:
 			s.vstatusset(s.vstr('er_file_write'))
 		return None
 
+	# Changes or returns settings values
+	def setting(s,setting):
+		setting = setting.split('=')
+		if   len(setting) == 2: key, value = setting
+		elif len(setting) == 1: key, value = (setting[0],None)
+
+		if key == '':
+			s.vstatusset(str(s.rtset))
+		if key not in s.rtset:
+			s.vstatusset(s.vstr('er_invalid_id_s') % key)
+			return False
+		elif value == None:
+			s.vstatusset(s.vstr('ok_display_value_ss') % (key, s.rtset[key]))
+			return True
+		elif value in ('0','False','false'):
+			s.rtset[key] = False
+		elif value in ('1','True','true'):
+			s.rtset[key] = True
+		s.vstatusset(s.vstr('ok_setting_set_ss') % (key, s.rtset[key]))
+		return True
+
+	'''
+	"ok_setting_value_ss": "Value of %s is: %s",
+	"ok_setting_set_ss": "%s setting changed to %s",
+	"er_setting_notset_s": "Error changing setting %s",
+	"er_setting_invalidval_ss": "Invalid value for %s. Should be %s",'''
+
 	# Adds a new task
 	def tasknew(s,text='',args=[]):
 		if len(text) == 0:
@@ -83,39 +110,70 @@ class PinoToDo:
 			return False
 
 	# Deletes a task by its ID
-	def taskdel(s,taskid):
+	def taskdel(s,idlist):
+		if len(idlist) == 0:
+			s.vstatusset(s.vstr('er_notaskid'))
+			return False
 		try:
-			del s.db[taskid]
-			s.vstatusset(s.vstr('ok_task_deleted_s') % taskid)
+			idlist = idlist.split(',')
+			if s.allidexist(idlist,displayerror=True): # Delete all or none
+				for oneid in idlist: del s.db[oneid]
+			else:
+				return False
+			s.vstatusset(s.vstr('ok_task_deleted_s') % ','.join(idlist))
 			return True
 		except:
-			s.vstatusset(s.vstr('er_invalid_id_s')   % taskid)
+			return False
+
+	# check if one or more IDs exist. Be careful not to pass strings as idlist
+	def allidexist(s,idlist,displayerror=False):
+		if type(idlist) == str: idlist = (idlist,)
+		try:
+			for oneid in idlist:
+				last = oneid
+				s.db[oneid] # if index doesn't exist this will raise exception
+			return True
+		except:
+			if displayerror != False:
+				s.vstatusset(s.vstr('er_invalid_id_s')   % last)
 			return False
 
 	# Toggles complete status between 0 (not completed) and .time() (completed)
-	def tasktogglecomplete(s,taskid):
-			try:
+	def tasktogglecomplete(s,idlist):
+		if len(idlist) == 0:
+			s.vstatusset(s.vstr('er_notaskid'))
+			return False
+		idlist = idlist.split(',')
+		if s.allidexist(idlist,displayerror=True):
+			for taskid in idlist:
 				if s.db[taskid][1] == 0:
 					s.db[taskid][1] = time.time()
 					s.vstatusset(s.vstr("ok_task_markcomplete_s") % taskid)
 				else:
 					s.db[taskid][1] = 0
 					s.vstatusset(s.vstr("ok_task_marknew_s") % taskid)
-				return True
-			except:
-				s.vstatusset(s.vstr('er_invalid_id_s') % taskid)
+			return True
+		else:
+			return False;
 
 	# Toggles critical (!) status
-	def tasktogglecrit(s,taskid):
-		try:
-			if s.db[taskid][2] == 0:
-				s.db[taskid][2] = 1
-				s.vstatusset(s.vstr("ok_task_markcrit_s") % taskid)
-			else:
-				s.db[taskid][2] = 0
-				s.vstatusset(s.vstr("ok_task_marknocrit_s") % taskid)
-		except:
-			s.vstatusset(s.vstr('er_invalid_id_s') % taskid)
+	def tasktogglecrit(s,idlist):
+		if len(idlist) == 0:
+			s.vstatusset(s.vstr('er_notaskid'))
+			return False
+		idlist = idlist.split(',')
+		if s.allidexist(idlist,displayerror=True):
+			for taskid in idlist:
+				if s.db[taskid][2] == 0:
+					s.db[taskid][2] = 1
+					s.vstatusset(s.vstr("ok_task_markcrit_s") % taskid)
+				else:
+					s.db[taskid][2] = 0
+					s.vstatusset(s.vstr("ok_task_marknocrit_s") % taskid)
+			return True
+		else:
+			return False
+
 
 	# Sets auto-increment value to smallest available index (NOT the highest)
 	def autoincr_setfirstempty(s):
@@ -222,28 +280,56 @@ class PinoToDo:
 		linecount = s.linesleftset(-(msg.count("\n")+1))
 		return linecount
 
+	# Displays a single task
+	def vshowtask(s,taskid):
+		limit = s.linesleft
+		display = []
+		line = ''
+		linecount = 0
+		_ = display.append
+		try:
+			task = s.db[taskid]
+			critical = ' '+s.vstr('detail_critical') if task[2] else ''
+			st = time.gmtime(task[0])
+			ed = time.gmtime(task[1]) if task[1] > 0 else 0
+			body = s.linebreak(task[3], s.termsize[0], True)
+			_('')
+			_(s.vstr('detail_taskid_ss') % (taskid,critical))
+			_(s.vhline(style=2))
+			_(s.vstr('detail_description')+'\n')
+			[_(x) for x in s.linebreak(task[3], s.termsize[0], True)]
+			_(s.vhline(style=2))
+			_(s.vstr('detail_created') % (st[0],st[1],st[2],st[3],st[4]))
+			if ed != 0:
+				_(s.vstr('detail_completed') % (ed[0],ed[1],ed[2],ed[3],ed[4]))
+		except:
+			s.vstatusset(s.vstr('er_invalid_id_s') % taskid)
+			return False
+		s.linesleftset(-len(display))
+		return "\n".join(display)
+
 	# Display list of tasks
 	def vtasklist(s):
 		limit = s.linesleft
-		display = [[],[],[]] # Critical, normal, completed
+		display = [[],[],[]] # Critical (top), normal (middle), ended (bottom)
 		line = ''
 		linecount = 0
 
 
-		for key in s.db:
+		for key, item in s.db.items():
 			if limit <= 0: break
-			if s.db[key][1] > 0 and s.rtset['show_completed'] == False:
+			if item[1] > 0 and s.rtset['show_completed'] == False:
 				continue
 			line += ' ' # left margin
 			line += key.rjust(4)
-			line += '![' if s.db[key][2] != 0 else ' [' # Critical '!' or not ' '
-			line += 'x] ' if s.db[key][1] > 0 else ' ] ' # Marked completed or not
-			line += s.db[key][3]
+			line += '![' if item[2] != 0 else ' [' # Critical '!' or not ' '
+			line += 'x] ' if item[1] > 0 else ' ] ' # Marked completed or not
+			line += item[3]
 
 			display_ind = 1 # default add to middle
-			if s.db[key][2] == 1 and s.rtset['critical_first'] == True:
+			if item[2] == 1 and s.rtset['critical_first'] == True:
 				display_ind = 0
-			if s.db[key][1] > 0 and s.rtset['completed_last'] == True:
+			if item[1] > 0 and s.rtset['completed_last'] == True:
 				display_ind = 2
 
 			linecount = len([display[display_ind].append(l) for l in s.linebreak(line,s.termsize[0], True)])
@@ -259,6 +345,7 @@ class PinoToDo:
 			return "\n".join(display)
 		else:
 			return None
+
 	# Command prompt
 	# TODO: Way of preparing before actual prompt
 	def vprompt(s,altprompt="",preorder=False):
@@ -277,9 +364,7 @@ class PinoToDo:
 		return totallines
 
 	# outputs the buffer [and clears it by default]
-	# IDEA: make smart display; called last and automatically fills all space
 	def vbuffer_dump(s,clear=True):
-		dump = ''
 		for piece in s.vbuffer:
 			if type(piece[0]) != str: continue
 			print(piece[0],end="\n")
@@ -287,7 +372,6 @@ class PinoToDo:
 		return True
 
 	# Resets the buffer
-	# IDEA: is PinoToDo passed by reference or value?
 	def vbuffer_clear(s): s.vbuffer = list()
 
 #C#
@@ -300,18 +384,24 @@ class PinoToDo:
 				s.cls()
 				s.linesleftset(s.termsize[1])
 				s.fileload()
-				s.parsecmd(command)
+				lastcmd = s.parsecmd(command)
+				s.docmd(*lastcmd)
 				s.filewrite(s.db)
 				s.linesleftset(-1) # Reserve space for the footer, including divider
 
-				## DEBUG
-				#s.vstatusset('DB autoincr: %s; Class autoincr %s' % (s.dbschema['autoincr'], PinoToDo.dbschema['autoincr']))
-
 				s.vbuffer_add(
 					# Header
-					(s.vtitle(),'vtitle'),
-					# Body
-					(s.vtasklist(),'vtasklist'),
+					(s.vtitle(),'vtitle')
+				)
+
+				# Body
+
+				if lastcmd[0] in ('show',):
+					s.vbuffer_add((s.vshowtask(lastcmd[2]),'vshowtask'))
+				else:
+					s.vbuffer_add((s.vtasklist(),'vtasklist'))
+
+				s.vbuffer_add(
 					(s.vhline(width=0,count=s.linesleft),'vhline'),
 
 					# Footer starts
@@ -344,18 +434,16 @@ class PinoToDo:
 	# args: list containing the arguments preceded by "-"; can be empty
 	# fstr: final argument of the command, unique, not preceded by "-"
 	#       fstr can be empty
-	def parsecmd(s,rawinput): # eg: User has entered 'add -! Buy food'             rawinput: 'add -! Buy food'
-		args = [] # will contain list of arguments preceded by "-"
-		fstr = '' # will contain final part of the command -- an ID or text
-		# first we try to isolate the first part of the user input. I'm calling
-		# it "main command", or 'cmdmain' here
-		cmd = rawinput.strip().split(' ',1) # parts of commands are separated by " "       cmd: ['add', '-! Buy food']
+	def parsecmd(s,rawinput): # eg: User has entered 'add -! Buy food'
+		cmdmain = '' # first part of the command
+		args = [] # list of arguments preceded by "-"
+		fstr = '' # final part of the command -- a task ID, text etc
+		# first we try to isolate the first part of the user input.
+		# parts of commands are separated by " "
+		cmd = rawinput.strip().split(' ',1)
 		# if rawinput was '', then cmd will be [''] at this point
-		cmdmain = cmd[0] # main part of the command (add, delete etc)              cmdmain: 'add'
-		del cmd[0] # if rawinput was '', then cmd is now []                        cmd: ['-! Buy food']
-		if len(cmdmain) > 0 and cmdmain not in s.cmdaliases:
-			s.vstatusset(s.vstr('er_comm_invalid_s') % cmdmain)
-			return False
+		cmdmain = cmd[0] # main part of the command (add, delete etc)
+		del cmd[0] # if rawinput was '', then cmd is now []
 
 		# This loop splits and distributes the parts of the raw user input
 		# into the appropriate variables:
@@ -383,21 +471,21 @@ class PinoToDo:
 				break # Arrived at last part;
 			else:
 				raise Exception("Shouldn't arrive here! cmd is %s" % str(cmd))
-		s.docmd(cmdmain, args, fstr)
-		return True
+		return (cmdmain, args, fstr)
 
 
 	# executes command parsed by parsecmd()
 	def docmd(s,cmdmain,args,fstr):
+		if len(cmdmain) > 0 and cmdmain not in s.cmdaliases:
+			s.vstatusset(s.vstr('er_comm_invalid_s') % cmdmain)
+			return False
+
 		switch = s.cmdaliases[cmdmain]
-		if switch in ('','qui','Q'):
-			return True
-		elif switch == 'start':
-			return True
-		elif switch == 'add':
-			return s.tasknew(fstr,args)
-		elif switch == 'delete':
-			return s.taskdel(fstr)
+		if switch in ('','qui','Q'): return True
+		elif switch == 'start': return True
+		elif switch == 'show': return True
+		elif switch == 'add': return s.tasknew(fstr,args)
+		elif switch == 'delete': return s.taskdel(fstr)
 		elif switch == 'markcomplete':
 			ret = s.tasktogglecomplete(fstr)
 			if ret != False: return True
@@ -406,23 +494,23 @@ class PinoToDo:
 			ret = s.tasktogglecrit(fstr)
 			if ret != False: return True
 			else: return False
-		elif switch == 'sort':
-			s.reorder()
-			return True
-		elif switch == 'debug':
-			print(s.db)
-			return True
-		elif switch == 'debug_minautoincr':
-			s.autoincr_setfirstempty()
-			return True
+		elif switch == 'sort': s.reorder()
+		elif switch == 'debug': print(s.db)
+		elif switch == 'debug_minautoincr': s.autoincr_setfirstempty()
 		elif switch == 'debug_nextid':
 			s.vstatusset("Auto-increment value: %s (not necessarily available)" % s.dbschema['autoincr'])
 		elif switch == 'dwipe':
 			s.db=dict()
 			s.autoincr_setfirstempty()
+		elif switch == 'set': s.setting(fstr)
 		else:
-			s.vstatusset(s.vstr('er_not_implemented')+"; switch: '%s', cmd: %s, cmdmain: %s" % (switch, cmd, cmdmain))
+			s.vstatusset(s.vstr('er_not_implemented')+"; switch: '%s', fstr: %s, cmdmain: %s, args: %s" % (switch, fstr, cmdmain, args))
 			return None
+		return True
+
+	# Decides what view module to show
+	def callview(s,cmd):
+		s.vtasklist() #BOGUS
 
 	# Breaks lines
 	def linebreak(s,string,width,multiline=False):
@@ -441,6 +529,7 @@ class PinoToDo:
 		"program_title": "Pino Tasks",
 		"prompt": "> ",
 		"ok_exit": "Goodbye",
+		"er_notaskid": "A valid task ID must be provided",
 		"ok_task_added_s": "Task added succesfully (ID %s)",
 		"er_task_noadd": "Error when adding task",
 		"er_task_noadd_emptystr": "Error: Input must not be empty",
@@ -450,6 +539,10 @@ class PinoToDo:
 		"ok_task_marknew_s": "Task marked as new (ID %s)",
 		"ok_task_marknocrit_s": "Task marked as not critical (ID %s)",
 		"ok_task_markcrit_s": "Task marked as critical (ID %s)",
+		"ok_display_value_ss": "Value of %s is: %s",
+		"ok_setting_set_ss": "%s setting changed to %s",
+		"er_setting_notset_s": "Error changing setting %s",
+		"er_setting_invalidval_ss": "Invalid value for %s. Should be %s",
 		"er_invalid_id_s": "Invalid ID! Received: %s",
 		"er_comm_invalid_s": "Invalid command: %s",
 		"er_not_implemented": "Not implemented",
@@ -460,7 +553,13 @@ class PinoToDo:
 		"ok_file_createnew": "Starting with a blank database",
 		"ok_file_write": "Database written to file",
 		"autoincr_already_minimal": "Auto-increment value is already the lowest possible",
-		"autoincr_set_s": "Auto-increment value set to %s"
+		"autoincr_set_s": "Auto-increment value set to %s",
+		"detail_taskid_ss": "Task ID: %s%s",
+		"detail_critical": " (CRITICAL)",
+		"detail_description": "DESCRIPTION:",
+		"detail_created":   "  Created: %s-%s-%s %s:%s", # Space added to align with completed
+		"detail_completed": "Completed: %s-%s-%s %s:%s"
+
 	}
 	cmdaliases = {
 		# Default
@@ -469,6 +568,8 @@ class PinoToDo:
 		# quit: exit comands
 		'quit': 'quit',
 		'q':'quit', 'exit':'quit', 'bye':'quit','Q':'quit!',
+		# show: display all task data
+		'show': 'show',
 		# add: Add task
 		'add':'add',
 		'a':'add', '+':'add',
@@ -483,10 +584,11 @@ class PinoToDo:
 		'markcritical': 'markcritical',
 		'!': 'markcritical', 'cri': 'markcritical', 'critical': 'critical',
 		'sort':'sort',
+		# set: change settings
+		'set': 'set',
 		# SPECIAL
 		'debug':'debug', 'dminid': 'debug_minautoincr','dnid': 'debug_nextid',
 		'dwipe':'dwipe'
 	}
 
-if __name__ == "__main__":
-	PinoToDo()
+if __name__ == "__main__": PinoToDo()

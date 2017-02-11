@@ -11,6 +11,9 @@ _legend: {required} [optional]_
 * **complete {id}**	mark a task as completed. Does not delete the task, just marks it with a x. _(aliases: c, x, com, markcomplete)_
 * **markcritical {id}**	toggles the "!" mark of a task (aliases: !, markcritical, critical, cri)
 * **sort**	sorts the tasks by ID
+* **set {setting}{=value}**	change settings (e.g. '_set show_completed=False_') or display settings with their values if called without arguments
 * **dwipe**	discards all tasks, no questions asked
 * **dminid**	sets the next new task ID to the lowest unused possibility. For example, if you added tasks 0, 1 and 2, the next ID will normally be 3 even if you delete the others. But if you delete 1, for example, this command will set the next ID to 1. The next ID will be the
 * **debug**	does nothing
+
+	Note: the commands complete, delete and markcritical accept multiple IDs at once by providing them separated by commas, for example: 1,2,3
