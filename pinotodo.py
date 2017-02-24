@@ -1,4 +1,9 @@
-import os, sys, json, shutil, time
+import os # cls()
+import sys # file handling
+import json # database serializing
+import shutil # terminal size
+import time # task metadata
+import math # ceil() to round number of lines
 
 class PinoToDo:
 	db = dict() # Tasks database
@@ -8,7 +13,7 @@ class PinoToDo:
 	rtset = { # Runtime settings
 		'show_completed': True,
 		'completed_last': True, # no effect if show_completed = False
-		'critical_first': True
+		'critical_first': True,
 	}
 	termsize = (80,24) # Viewport size
 	linesleft = 0 # vertical space left in number of lines
@@ -66,12 +71,12 @@ class PinoToDo:
 
 		if key == '':
 			s.vstatusset(str(s.rtset))
-		if key not in s.rtset:
+			return True
+		elif key not in s.rtset:
 			s.vstatusset(s.vstr('er_invalid_id_s') % key)
 			return False
 		elif value == None:
 			s.vstatusset(s.vstr('ok_display_value_ss') % (key, s.rtset[key]))
-			return True
 		elif value in ('0','False','false'):
 			s.rtset[key] = False
 		elif value in ('1','True','true'):
@@ -271,6 +276,7 @@ class PinoToDo:
 		for k,v in enumerate(s.dispstatus):
 			s.dispstatus[k] = v.rjust(s.termsize[0])
 		ret = "\n".join(s.dispstatus) if len(s.dispstatus) > 0 else None
+
 		s.dispstatus = list()
 		return ret
 
