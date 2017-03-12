@@ -1,5 +1,11 @@
 # Pino ToDo changelog
 
+## 2017-03-12
+* **New:** Now supports multiple task lists with the command _dbfile_. See readme.md for usage.
+* **New:** Current file is shown beside 
+* **Fix:** Task order is now preserved under Python < 2.6
+* Minor code tweaks
+
 ## 2017-02-11
 * **New:** Multiple tasks can be deleted, marked as completed or marked as critical by specifying multiple comma-separated ids, for example: 'delete 1,2,5' will delete tasks with ID 1, 2 and 5, while 'complete 3,6,7' will toggle the "complete" status of tasks 3, 6 and 7
 * **New:** Details about a single task can be show with the 'show ID' command
